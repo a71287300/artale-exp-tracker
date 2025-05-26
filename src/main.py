@@ -4,8 +4,6 @@ import cv2
 import json
 import os
 from database import Database
-# from window_utils import get_window, get_experience_region, get_active_windows, bring_window_to_front
-from screenshot import capture_screenshot
 from ocr import extract_experience
 from utils import calculate_experience_per_minute
 from oauth.google import google_oauth_login
