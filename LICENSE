@@ -1,17 +1,33 @@
+<<<<<<< HEAD
 Copyright (c) 2024 [a71287300]
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software with the following restrictions:
+=======
+MIT License
+
+Copyright (c) 2025 RKaio
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+>>>>>>> 79ede4e2ce3be511b49154387b8e9c0a036d3996
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
 
+<<<<<<< HEAD
 Any use, modification, or distribution of the Software must:
 1. Retain the original author's copyright notice
 2. Include a reference to the original project source
 3. Clearly indicate any modifications made
 
+=======
+>>>>>>> 79ede4e2ce3be511b49154387b8e9c0a036d3996
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
