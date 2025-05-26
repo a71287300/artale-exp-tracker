@@ -4,13 +4,14 @@ import cv2
 import json
 import os
 from database import Database
-from window_utils import get_window, get_experience_region, get_active_windows, bring_window_to_front
+# from window_utils import get_window, get_experience_region, get_active_windows, bring_window_to_front
 from screenshot import capture_screenshot
 from ocr import extract_experience
 from utils import calculate_experience_per_minute
 from oauth.google import google_oauth_login
 from oauth.discord import discord_oauth_login
 from extra_streamlit_components import CookieManager
+import numpy as np
 
 db = Database()
 cookie_manager = CookieManager()
@@ -59,8 +60,8 @@ def main():
 
     st.success(f"歡迎, {user_name}")
 
-    if 'window' not in st.session_state:
-        st.session_state.window = None
+    if 'uploaded_image' not in st.session_state:
+        st.session_state.uploaded_image = None
     if 'region' not in st.session_state:
         st.session_state.region = None
     if 'final_results' not in st.session_state:
@@ -72,36 +73,21 @@ def main():
     if 'pause_time' not in st.session_state:
         st.session_state.pause_time = 0
 
-    window_titles = get_active_windows()
-    default_window = "MapleStory Worlds-Artale (繁體中文版)"
-    if 'window_name' not in st.session_state:
-        if default_window in window_titles:
-            st.session_state.window_name = default_window
-        else:
-            st.session_state.window_name = window_titles[0] if window_titles else None
+    st.header("請上傳遊戲截圖")
+    uploaded_file = st.file_uploader("選擇一張遊戲截圖", type=["png", "jpg", "jpeg"])
+    if uploaded_file is not None:
+        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+        image = cv2.imdecode(file_bytes, 1)
+        st.session_state.uploaded_image = image
+        st.image(image, channels="BGR", caption="上傳的截圖", use_container_width=True)
 
-    window_name = st.selectbox(
-        "選擇遊戲視窗:",
-        window_titles,
-        index=window_titles.index(st.session_state.window_name) if st.session_state.window_name in window_titles else 0
-    )
-    if st.button("選擇視窗"):
-        st.session_state.window_name = window_name
-        st.session_state.window = get_window(window_name)
-        if st.session_state.window:
-            st.success(f"已選擇視窗: {window_name}")
-        else:
-            st.error("找不到視窗，請檢查名稱。")
-
-    if st.session_state.window:
-        # region 設定預設值
+    if st.session_state.uploaded_image is not None:
         default_region = {
             "x": 53,
             "y": 93,
             "w": 13,
             "h": 3
         }
-        # 從資料庫取得使用者的區域設定
         user_region = db.get_window_region(user_id)
         if user_region is None:
             user_region = default_region
@@ -118,34 +104,28 @@ def main():
         with col1:
             preview_button = st.button("瀏覽區域")
         with col2:
-            if st.button("儲存視窗設定"):
+            if st.button("儲存區域設定"):
                 region = {"x": x, "y": y, "w": w, "h": h}
                 db.save_window_region(user_id, region)
-                st.success("已儲存視窗設定")
+                st.success("已儲存區域設定")
 
         if preview_button:
-            st.info("正在擷取視窗...")
-            bring_window_to_front(st.session_state.window)
-            time.sleep(0.5)
-            screenshot = capture_screenshot(st.session_state.window)
-            if screenshot is not None:
-                st.success("成功擷取畫面")
-                height, width = screenshot.shape[:2]
-                region = {
-                    'x': int(width * x / 100),
-                    'y': int(height * y / 100),
-                    'w': int(width * w / 100),
-                    'h': int(height * h / 100)
-                }
-                st.session_state.region = region
-                preview = screenshot.copy()
-                cv2.rectangle(preview, 
-                            (region['x'], region['y']),
-                            (region['x'] + region['w'], region['y'] + region['h']),
-                            (0, 255, 0), 2)
-                st.image(preview, channels="BGR", caption="預覽區域", use_container_width=True)
-            else:
-                st.error("擷取畫面失敗")
+            st.info("正在預覽區域...")
+            screenshot = st.session_state.uploaded_image
+            height, width = screenshot.shape[:2]
+            region = {
+                'x': int(width * x / 100),
+                'y': int(height * y / 100),
+                'w': int(width * w / 100),
+                'h': int(height * h / 100)
+            }
+            st.session_state.region = region
+            preview = screenshot.copy()
+            cv2.rectangle(preview, 
+                        (region['x'], region['y']),
+                        (region['x'] + region['w'], region['y'] + region['h']),
+                        (0, 255, 0), 2)
+            st.image(preview, channels="BGR", caption="預覽區域", use_container_width=True)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -161,7 +141,7 @@ def main():
     if start_button:
         st.session_state.final_results = None
         final_result_placeholder.empty()
-        if st.session_state.window and st.session_state.region:
+        if st.session_state.uploaded_image is not None and st.session_state.region:
             st.session_state.start_time = time.time()
             initial_experience = None
             should_stop = False
@@ -172,12 +152,8 @@ def main():
                         continue
                     current_time = time.time()
                     elapsed_time = current_time - st.session_state.start_time
-                    status_placeholder.info("正在擷取畫面...")
-                    screenshot = capture_screenshot(st.session_state.window)
-                    if screenshot is None:
-                        status_placeholder.error("擷取畫面失敗")
-                        break
                     status_placeholder.info("正在處理畫面...")
+                    screenshot = st.session_state.uploaded_image
                     region = st.session_state.region
                     cropped = screenshot[region['y']:region['y']+region['h'], 
                                       region['x']:region['x']+region['w']]
@@ -212,7 +188,7 @@ def main():
                 st.error(f"追蹤時發生錯誤: {str(e)}")
                 st.exception(e)
         else:
-            st.error("請先選擇視窗並設定區域。")
+            st.error("請先上傳截圖並設定區域。")
 
     if st.session_state.final_results and not start_button:
         final_result_placeholder.success("最終追蹤結果：")

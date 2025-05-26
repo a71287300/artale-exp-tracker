@@ -3,9 +3,8 @@ pytesseract>=0.3.10
 mss
 Pillow>=10.0.0
 pygetwindow
-pywin32
-opencv-python>=4.8.0
-numpy>=1.24.0
+opencv-python
+numpy
 bcrypt>=4.0.1
 streamlit-oauth
 extra-streamlit-components
