@@ -8,41 +8,31 @@ from window_utils import get_window, get_experience_region, get_active_windows, 
 from screenshot import capture_screenshot
 from ocr import extract_experience
 from utils import calculate_experience_per_minute
-from oauth.google import google_oauth_login
-from oauth.discord import discord_oauth_login
-from extra_streamlit_components import CookieManager
 
 db = Database()
-cookie_manager = CookieManager()
 
-def oauth_login():
+def email_login():
     st.title("Artale經驗值追蹤器")
-    st.write("請選擇登入方式：")
-    user_info = None
-    provider = None
+    if 'user_email' not in st.session_state:
+        st.session_state.user_email = None
 
-    if 'google_token' in st.session_state:
-        user_info = google_oauth_login()
-        provider = 'google'
-    elif 'discord_token' in st.session_state:
-        user_info = discord_oauth_login()
-        provider = 'discord'
-
-    if user_info:
+    if st.session_state.user_email:
         if st.button("登出"):
-            if provider == 'google':
-                st.session_state.pop('google_token', None)
-            elif provider == 'discord':
-                st.session_state.pop('discord_token', None)
+            st.session_state.user_email = None
             st.rerun()
-        return user_info
+        return {"email": st.session_state.user_email, "name": st.session_state.user_email}
     else:
-        google_oauth_login()
-        discord_oauth_login()
+        email = st.text_input("請輸入您的 Email")
+        if st.button("登入"):
+            if email and '@' in email:
+                st.session_state.user_email = email
+                st.rerun()
+            else:
+                st.error("請輸入有效的 Email 地址")
         return None
 
 def main():
-    user_info = oauth_login()
+    user_info = email_login()
     if not user_info:
         st.stop()
 
