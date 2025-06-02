@@ -4,10 +4,12 @@ import cv2
 import json
 import os
 from database import Database
-from window_utils import get_window, get_experience_region, get_active_windows, bring_window_to_front
 from screenshot import capture_screenshot
 from ocr import extract_experience
 from utils import calculate_experience_per_minute
+import pygetwindow as gw
+import pyautogui
+import numpy as np
 
 db = Database()
 
@@ -31,6 +33,35 @@ def email_login():
                 st.error("請輸入有效的 Email 地址")
         return None
 
+def get_window_titles():
+    # 取得所有可用視窗標題
+    windows = gw.getAllTitles()
+    # 過濾掉空字串
+    return [w for w in windows if w.strip()]
+
+def capture_window_screenshot(window_title):
+    # 取得指定視窗的畫面
+    win = None
+    for w in gw.getAllWindows():
+        if w.title == window_title:
+            win = w
+            break
+    if win is None:
+        return None
+    try:
+        win.activate()
+        time.sleep(0.2)  # 等待視窗切換
+    except Exception as e:
+        st.warning("無法將視窗切換為前景（可能已最小化或權限不足），將直接擷取畫面。若無法擷取，請勿最小化遊戲視窗。")
+    left, top, width, height = win.left, win.top, win.width, win.height
+    try:
+        screenshot = pyautogui.screenshot(region=(left, top, width, height))
+        img = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+        return img
+    except Exception as e:
+        st.error("無法擷取遊戲畫面，請確認遊戲視窗未最小化，且已允許必要權限。")
+        return None
+
 def main():
     user_info = email_login()
     if not user_info:
@@ -49,8 +80,7 @@ def main():
 
     st.success(f"歡迎, {user_name}")
 
-    if 'window' not in st.session_state:
-        st.session_state.window = None
+    # 移除 window handle 相關，直接讓使用者設定區域
     if 'region' not in st.session_state:
         st.session_state.region = None
     if 'final_results' not in st.session_state:
@@ -62,96 +92,95 @@ def main():
     if 'pause_time' not in st.session_state:
         st.session_state.pause_time = 0
 
-    window_titles = get_active_windows()
-    default_window = "MapleStory Worlds-Artale (繁體中文版)"
-    if 'window_name' not in st.session_state:
-        if default_window in window_titles:
-            st.session_state.window_name = default_window
-        else:
-            st.session_state.window_name = window_titles[0] if window_titles else None
-
-    window_name = st.selectbox(
-        "選擇遊戲視窗:",
-        window_titles,
-        index=window_titles.index(st.session_state.window_name) if st.session_state.window_name in window_titles else 0
-    )
-    if st.button("選擇視窗"):
-        st.session_state.window_name = window_name
-        st.session_state.window = get_window(window_name)
-        if st.session_state.window:
-            st.success(f"已選擇視窗: {window_name}")
-        else:
-            st.error("找不到視窗，請檢查名稱。")
-
-    if st.session_state.window:
-        # region 設定預設值
-        default_region = {
-            "x": 53,
-            "y": 93,
-            "w": 13,
-            "h": 3
-        }
-        # 從資料庫取得使用者的區域設定
-        user_region = db.get_window_region(user_id)
-        if user_region is None:
-            user_region = default_region
-
-        col1, col2 = st.columns(2)
-        with col1:
-            x = st.slider("X 位置 (%)", 0, 100, user_region["x"])
-            y = st.slider("Y 位置 (%)", 0, 100, user_region["y"])
-        with col2:
-            w = st.slider("寬度 (%)", 1, 100, user_region["w"])
-            h = st.slider("高度 (%)", 1, 100, user_region["h"])
-
-        col1, col2 = st.columns(2)
-        with col1:
-            preview_button = st.button("瀏覽區域")
-        with col2:
-            if st.button("儲存視窗設定"):
-                region = {"x": x, "y": y, "w": w, "h": h}
-                db.save_window_region(user_id, region)
-                st.success("已儲存視窗設定")
-
-        if preview_button:
-            st.info("正在擷取視窗...")
-            bring_window_to_front(st.session_state.window)
-            time.sleep(0.5)
-            screenshot = capture_screenshot(st.session_state.window)
-            if screenshot is not None:
-                st.success("成功擷取畫面")
-                height, width = screenshot.shape[:2]
-                region = {
-                    'x': int(width * x / 100),
-                    'y': int(height * y / 100),
-                    'w': int(width * w / 100),
-                    'h': int(height * h / 100)
-                }
-                st.session_state.region = region
-                preview = screenshot.copy()
-                cv2.rectangle(preview, 
-                            (region['x'], region['y']),
-                            (region['x'] + region['w'], region['y'] + region['h']),
-                            (0, 255, 0), 2)
-                st.image(preview, channels="BGR", caption="預覽區域", use_container_width=True)
-            else:
-                st.error("擷取畫面失敗")
+    # region 設定預設值
+    default_region = {
+        "x": 56.4,
+        "y": 94.0,
+        "w": 10.8,
+        "h": 2.4
+    }
+    user_region = db.get_window_region(user_id)
+    if user_region is None:
+        user_region = default_region
 
     col1, col2 = st.columns(2)
     with col1:
-        start_button = st.button("開始追蹤")
+        x = st.slider("X 位置 (%)", 50.0, 65.0, float(user_region["x"]), step=0.1, format="%.1f")
+        y = st.slider("Y 位置 (%)", 90.0, 100.0, float(user_region["y"]), step=0.1, format="%.1f")
     with col2:
-        stop_button = st.button("結束")
+        w = st.slider("寬度 (%)", 5.0, 20.0, float(user_region["w"]), step=0.1, format="%.1f")
+        h = st.slider("高度 (%)", 1.0, 5.0, float(user_region["h"]), step=0.1, format="%.1f")
 
-    status_placeholder = st.empty()
-    cropped_placeholder = st.empty()
-    result_placeholder = st.empty()
-    final_result_placeholder = st.empty()
+    col1, col2 = st.columns(2)
+    with col1:
+        preview_button = st.button("瀏覽區域")
+    with col2:
+        if st.button("儲存視窗設定"):
+            region = {"x": x, "y": y, "w": w, "h": h}
+            db.save_window_region(user_id, region)
+            st.success("已儲存視窗設定")
 
-    if start_button:
-        st.session_state.final_results = None
-        final_result_placeholder.empty()
-        if st.session_state.window and st.session_state.region:
+    # 新增：預設選取 MapleStory Worlds-Artale (繁體中文版)
+    default_window_title = "MapleStory Worlds-Artale (繁體中文版)"
+    if 'window_title' not in st.session_state:
+        st.session_state.window_title = None
+
+    window_titles = get_window_titles()
+    # 預設選 MapleStory Worlds-Artale (繁體中文版) 若存在，否則選第一個
+    if st.session_state.window_title is None:
+        if default_window_title in window_titles:
+            st.session_state.window_title = default_window_title
+        elif window_titles:
+            st.session_state.window_title = window_titles[0]
+        else:
+            st.session_state.window_title = ""
+
+    selected_title = st.selectbox(
+        "選擇遊戲視窗",
+        window_titles,
+        index=window_titles.index(st.session_state.window_title) if st.session_state.window_title in window_titles else 0
+    )
+    if selected_title != st.session_state.window_title:
+        st.session_state.window_title = selected_title
+
+    if preview_button:
+        st.info("正在擷取畫面...")
+        screenshot = capture_window_screenshot(st.session_state.window_title)
+        if screenshot is not None:
+            st.success("成功擷取畫面")
+            height, width = screenshot.shape[:2]
+            region = {
+                'x': int(width * x / 100),
+                'y': int(height * y / 100),
+                'w': int(width * w / 100),
+                'h': int(height * h / 100)
+            }
+            st.session_state.region = region
+            preview = screenshot.copy()
+            import cv2
+            cv2.rectangle(preview, 
+                        (region['x'], region['y']),
+                        (region['x'] + region['w'], region['y'] + region['h']),
+                        (0, 255, 0), 2)
+            st.image(preview, channels="BGR", caption="預覽區域", use_container_width=True)
+        else:
+            st.error("擷取畫面失敗，請勿最小化遊戲視窗，並確認已允許必要權限。")
+
+    if st.session_state.region:
+        col1, col2 = st.columns(2)
+        with col1:
+            start_button = st.button("開始追蹤")
+        with col2:
+            stop_button = st.button("結束")
+
+        status_placeholder = st.empty()
+        cropped_placeholder = st.empty()
+        result_placeholder = st.empty()
+        final_result_placeholder = st.empty()
+
+        if start_button:
+            st.session_state.final_results = None
+            final_result_placeholder.empty()
             st.session_state.start_time = time.time()
             initial_experience = None
             should_stop = False
@@ -163,9 +192,10 @@ def main():
                     current_time = time.time()
                     elapsed_time = current_time - st.session_state.start_time
                     status_placeholder.info("正在擷取畫面...")
-                    screenshot = capture_screenshot(st.session_state.window)
+                    # 修改：擷取所選視窗
+                    screenshot = capture_window_screenshot(st.session_state.window_title)
                     if screenshot is None:
-                        status_placeholder.error("擷取畫面失敗")
+                        status_placeholder.error("擷取畫面失敗，請勿最小化遊戲視窗，並確認已允許必要權限。")
                         break
                     status_placeholder.info("正在處理畫面...")
                     region = st.session_state.region
@@ -201,8 +231,6 @@ def main():
             except Exception as e:
                 st.error(f"追蹤時發生錯誤: {str(e)}")
                 st.exception(e)
-        else:
-            st.error("請先選擇視窗並設定區域。")
 
     if st.session_state.final_results and not start_button:
         final_result_placeholder.success("最終追蹤結果：")
